@@ -3,40 +3,53 @@ package main
 import (
 	"cloud.google.com/go/pubsub"
 	"context"
+	gcpconfig "github.com/abtin/pubsubdemo"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"log"
-	"os"
 	"time"
 )
 
 func main() {
-	credentials := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-	if credentials == "" {
-		log.Fatalln("Please set GOOGLE_APPLICATION_CREDENTIALS environment variable")
-	}
-	projectID := os.Getenv("GOOGLE_PROJECT_ID")
-	if projectID == "" {
-		log.Fatalln("Please set GOOGLE_PROJECT_ID environment variable")
-	}
-	dataTopicID := os.Getenv("DATA_TOPIC_ID")
-	if dataTopicID == "" {
-		log.Fatalln("Please set DATA_TOPIC_ID environment variable")
+	config, err := gcpconfig.NewGcpConfig()
+	if err != nil {
+		log.Fatalln(err)
 	}
 
 	ctx := context.Background()
-	client, err := pubsub.NewClient(ctx, projectID, option.WithCredentialsFile(credentials))
+	client, err := pubsub.NewClient(ctx, config.ProjectID(), option.WithCredentialsFile(config.Credentials()))
 	if err != nil {
 		log.Fatalf("Error creating a new pubsub client - %s", err)
 	}
 	defer client.Close()
 
-	cfg := pubsub.SubscriptionConfig{
-		Topic:       client.Topic(dataTopicID),
-		AckDeadline: 10 * time.Second,
+	topic := client.Topic(config.DataTopicID())
+	var alreadySubscribed bool
+	for subs := topic.Subscriptions(ctx); ; {
+		sub, err := subs.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			log.Fatalln(err)
+		}
+		if sub.ID() == config.Subscription() {
+			alreadySubscribed = true
+		}
 	}
-	subs, err := client.CreateSubscription(ctx, "test", cfg)
-	if err != nil {
-		log.Fatalf("Error creating subscription %s", err)
+	var subs *pubsub.Subscription
+	if !alreadySubscribed {
+		cfg := pubsub.SubscriptionConfig{
+			Topic:       client.Topic(config.DataTopicID()),
+			AckDeadline: 10 * time.Second,
+		}
+
+		subs, err = client.CreateSubscription(ctx, config.Subscription(), cfg)
+		if err != nil {
+			log.Fatalf("Error creating subscription %s", err)
+		}
+	} else {
+		subs = client.Subscription(config.Subscription())
 	}
 	defer subs.Delete(ctx)
 
@@ -50,5 +63,4 @@ func main() {
 			log.Fatalf("Error receiving messages - %s", err)
 		}
 	}
-
 }

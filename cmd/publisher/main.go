@@ -5,6 +5,7 @@ import (
 	"cloud.google.com/go/pubsub"
 	"context"
 	"fmt"
+	"github.com/abtin/pubsubdemo"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"log"
@@ -18,21 +19,13 @@ func main() {
 		log.Fatalln("Usage: ./published <publishing_file>")
 	}
 	publishFile := os.Args[1]
-	credentials := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-	if credentials == "" {
-		log.Fatalln("Please set GOOGLE_APPLICATION_CREDENTIALS environment variable")
-	}
-	projectID := os.Getenv("GOOGLE_PROJECT_ID")
-	if projectID == "" {
-		log.Fatalln("Please set GOOGLE_PROJECT_ID environment variable")
-	}
-	dataTopicID := os.Getenv("DATA_TOPIC_ID")
-	if dataTopicID == "" {
-		log.Fatalln("Please set DATA_TOPIC_ID environment variable")
+	config, err := gcpconfig.NewGcpConfig()
+	if err != nil {
+		log.Fatalln(err)
 	}
 
 	ctx := context.Background()
-	client, err := pubsub.NewClient(ctx, projectID, option.WithCredentialsFile(credentials))
+	client, err := pubsub.NewClient(ctx, config.ProjectID(), option.WithCredentialsFile(config.Credentials()))
 	if err != nil {
 		log.Fatalf("Error creating a new pubsub client - %s", err)
 	}
@@ -48,18 +41,18 @@ func main() {
 		if err != nil { // TODO: Handle error.
 			log.Fatalln(err)
 		}
-		if topic.ID() == dataTopicID {
+		if topic.ID() == config.DataTopicID() {
 			dataTopicExist = true
 		}
 	}
 	var dataTopic *pubsub.Topic
 	if !dataTopicExist {
-		dataTopic, err = client.CreateTopic(ctx, dataTopicID)
+		dataTopic, err = client.CreateTopic(ctx, config.DataTopicID())
 		if err != nil {
 			log.Fatalf("Error creatng topic - %s", err)
 		}
 	} else {
-		dataTopic = client.Topic(dataTopicID)
+		dataTopic = client.Topic(config.DataTopicID())
 		defer dataTopic.Stop()
 	}
 
