@@ -1,4 +1,4 @@
-module github.com/abtin/pubsubdemo
+module github.com/abtin/controlledpubsub
 
 go 1.16
 

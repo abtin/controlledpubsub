@@ -5,10 +5,7 @@ import (
 	"cloud.google.com/go/pubsub"
 	"context"
 	"fmt"
-	"github.com/abtin/pubsubdemo"
-	"google.golang.org/api/iterator"
-	"google.golang.org/api/option"
-	"log"
+	"github.com/abtin/controlledpubsub/internal/gcp"
 	"os"
 	"strings"
 	"time"
@@ -16,45 +13,29 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatalln("Usage: ./published <publishing_file>")
+		fmt.Println("Usage: ./published <publishing_file>")
+		os.Exit(1)
 	}
 	publishFile := os.Args[1]
-	config, err := gcpconfig.NewGcpConfig()
+
+	config, err := gcp.NewPubSubConfig()
 	if err != nil {
-		log.Fatalln(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	ctx := context.Background()
-	client, err := pubsub.NewClient(ctx, config.ProjectID(), option.WithCredentialsFile(config.Credentials()))
+	client, err := gcp.NewPubSubClient(ctx, config)
 	if err != nil {
-		log.Fatalf("Error creating a new pubsub client - %s", err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
-	defer client.Close()
-
-	var dataTopicExist bool
-	it := client.Topics(ctx)
-	for {
-		topic, err := it.Next()
-		if err == iterator.Done {
-			break
+	defer func() {
+		if err := client.Shutdown(ctx); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
 		}
-		if err != nil { // TODO: Handle error.
-			log.Fatalln(err)
-		}
-		if topic.ID() == config.DataTopicID() {
-			dataTopicExist = true
-		}
-	}
-	var dataTopic *pubsub.Topic
-	if !dataTopicExist {
-		dataTopic, err = client.CreateTopic(ctx, config.DataTopicID())
-		if err != nil {
-			log.Fatalf("Error creatng topic - %s", err)
-		}
-	} else {
-		dataTopic = client.Topic(config.DataTopicID())
-		defer dataTopic.Stop()
-	}
+	}()
 
 	var paused bool
 	ch := make(chan bool)
@@ -67,7 +48,7 @@ func main() {
 				continue
 			}
 			if err != nil {
-				log.Fatalf("Error reading input - %s", err)
+				fmt.Println("Error reading input - %s", err)
 			}
 			switch strings.ToLower(command) {
 			case "pause":
@@ -81,7 +62,8 @@ func main() {
 
 	file, err := os.Open(publishFile)
 	if err != nil {
-		log.Fatalf("cannot open file %q to publish\n", publishFile)
+		fmt.Printf("cannot open file %q to publish\n", publishFile)
+		os.Exit(1)
 	}
 	defer file.Close()
 
@@ -91,10 +73,10 @@ func main() {
 	for scanner.Scan() {
 		if !paused {
 			line := scanner.Text()
-			pubRes := dataTopic.Publish(ctx, &pubsub.Message{Data: []byte(line)})
+			pubRes := client.Topic().Publish(ctx, &pubsub.Message{Data: []byte(line)})
 			_, err = pubRes.Get(ctx)
 			if err != nil {
-				log.Fatalf("Error publishing message - %s", err)
+				fmt.Printf("Error publishing message - %s\n", err)
 			}
 			time.Sleep(1 * time.Second)
 		} else {
