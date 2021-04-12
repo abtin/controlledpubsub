@@ -48,7 +48,7 @@ func main() {
 				continue
 			}
 			if err != nil {
-				fmt.Println("Error reading input - %s", err)
+				fmt.Printf("Error reading input - %s\n", err)
 			}
 			switch strings.ToLower(command) {
 			case "pause":
