@@ -3,8 +3,6 @@ package gcp
 import (
 	"cloud.google.com/go/pubsub"
 	"context"
-	"fmt"
-	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"time"
 )
@@ -21,45 +19,26 @@ func NewPubSubClient(ctx context.Context, config PubSubConfig) (PubSubClient, er
 	if err != nil {
 		return PubSubClient{}, err
 	}
-	var dataTopicExist bool
-	it := client.Topics(ctx)
-	for {
-		topic, err := it.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			fmt.Println(err)
-		}
-		if topic.ID() == config.DataTopicID() {
-			dataTopicExist = true
-		}
-	}
+
 	var dataTopic *pubsub.Topic
-	if !dataTopicExist {
+	dataTopic = client.Topic(config.DataTopicID())
+	topicExist, err := dataTopic.Exists(ctx)
+	if err != nil {
+		return PubSubClient{}, err
+	}
+	if !topicExist {
 		dataTopic, err = client.CreateTopic(ctx, config.DataTopicID())
 		if err != nil {
 			return PubSubClient{}, err
 		}
-	} else {
-		dataTopic = client.Topic(config.DataTopicID())
-		//defer dataTopic.Stop()
-	}
-	var alreadySubscribed bool
-	for subs := dataTopic.Subscriptions(ctx); ; {
-		sub, err := subs.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return PubSubClient{}, err
-		}
-		if sub.ID() == config.Subscription() {
-			alreadySubscribed = true
-		}
 	}
 	var subs *pubsub.Subscription
-	if !alreadySubscribed {
+	subs = client.Subscription(config.Subscription())
+	subExist, err := subs.Exists(ctx)
+	if err != nil {
+		return PubSubClient{}, err
+	}
+	if !subExist {
 		cfg := pubsub.SubscriptionConfig{
 			Topic:       client.Topic(config.DataTopicID()),
 			AckDeadline: 10 * time.Second,
@@ -69,8 +48,6 @@ func NewPubSubClient(ctx context.Context, config PubSubConfig) (PubSubClient, er
 		if err != nil {
 			return PubSubClient{}, err
 		}
-	} else {
-		subs = client.Subscription(config.Subscription())
 	}
 
 	return PubSubClient{

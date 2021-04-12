@@ -1,5 +1,5 @@
 secrets/*
 .idea/*
 .vscode/*
-cmd/publisher/publisher
-cmd/subscriber/subscriber
+cmd/publish/publish
+cmd/subscribe/subscribe

@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: ./published <publishing_file>")
+		fmt.Println("Usage: ./publish <file-to-publish>")
 		os.Exit(1)
 	}
 	publishFile := os.Args[1]

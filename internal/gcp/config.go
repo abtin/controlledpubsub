@@ -1,7 +1,6 @@
 package gcp
 
 import (
-	"errors"
 	"fmt"
 	"os"
 )
@@ -35,7 +34,7 @@ func NewPubSubConfig() (PubSubConfig, error) {
 	}
 
 	if errMsg != "" {
-		return PubSubConfig{}, errors.New(fmt.Sprintf("Please set the following Environment Variables:\n%s", errMsg))
+		return PubSubConfig{}, fmt.Errorf("Please set the following Environment Variables:\n%s", errMsg)
 	}
 	return PubSubConfig{
 		credentials:  credentials,
